@@ -30,7 +30,7 @@ const Cart = () => {
 					</div>
 					<div className="flex justify-between mt-4">
 						<span className="text-xl font-semibold">
-							Total: ${cart.reduce((acc, item) => acc + item.price, 0)}
+							Total: {cart.reduce((acc, item) => acc + item.price, 0)} MAD
 						</span>
 						<button
 							onClick={handleCheckout}

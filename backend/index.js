@@ -2,10 +2,23 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const multer = require("multer");
+const path = require("path");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Serve static files from the "uploads" directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+const storage = multer.diskStorage({
+	destination: "uploads/",
+	filename: (req, file, cb) => {
+		cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
+	},
+});
+const upload = multer({ storage });
 
 const mongoURI = process.env.MONGO_URI;
 
@@ -38,9 +51,43 @@ const OrderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model("Order", OrderSchema);
 
+// Admin Schema
+const AdminSchema = new mongoose.Schema({
+	username: String,
+	password: String,
+});
+const Admin = mongoose.model("Admin", AdminSchema);
+
 // Routes
 app.get("/", (req, res) => {
 	res.send("<h1>Server side is running</h1>");
+});
+
+// Add a new admin (for initial setup)
+app.post("/admins", async (req, res) => {
+	try {
+		const { username, password } = req.body;
+		const newAdmin = new Admin({ username, password });
+		await newAdmin.save();
+		res.json({ message: "Admin added!", admin: newAdmin });
+	} catch (error) {
+		res.status(500).json({ error: "Error adding admin" });
+	}
+});
+
+// Authenticate admin
+app.post("/admins/login", async (req, res) => {
+	try {
+		const { username, password } = req.body;
+		const admin = await Admin.findOne({ username, password });
+		if (admin) {
+			res.json({ message: "Authenticated", admin });
+		} else {
+			res.status(401).json({ error: "Invalid username or password" });
+		}
+	} catch (error) {
+		res.status(500).json({ error: "Error authenticating admin" });
+	}
 });
 
 // Get all products
@@ -58,12 +105,24 @@ app.get("/products/:id", async (req, res) => {
 });
 
 // Add a new product
-app.post("/products", async (req, res) => {
-	const newProduct = new Product(req.body);
-	await newProduct.save();
-	res.json({ message: "Product added!" });
-});
+app.post("/products", upload.single("image"), async (req, res) => {
+	try {
+		const { name, price, description } = req.body;
+		const imagePath = req.file ? req.file.path : null; // Store the image path
 
+		const newProduct = new Product({
+			name,
+			price,
+			description,
+			image: imagePath, // Save image path in database
+		});
+
+		await newProduct.save();
+		res.json({ message: "Product added!", product: newProduct });
+	} catch (error) {
+		res.status(500).json({ error: "Error adding product" });
+	}
+});
 // Delete a product
 app.delete("/products/:id", async (req, res) => {
 	const { id } = req.params;
@@ -72,16 +131,32 @@ app.delete("/products/:id", async (req, res) => {
 });
 
 // Update a product
-app.put("/products/:id", (req, res) => {
-	console.log("Updating product with ID:", req.params.id);
-	console.log("Updated data:", req.body);
-	const productId = req.params.id;
-	const updatedProduct = req.body;
+app.put("/products/:id", upload.single("image"), async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { name, price, description } = req.body;
+		const productImage = await Product.findById(id);
 
-	// Logic to find the product and update it
-	Product.findByIdAndUpdate(productId, updatedProduct, { new: true })
-		.then((updated) => res.json(updated))
-		.catch((error) => res.status(400).send(error));
+		if (!productImage) {
+			return res.status(404).json({ error: "Product not found" });
+		}
+
+		const imagePath = req.file ? `/uploads/${req.file.filename}` : productImage.image; // Retain existing image if no new image is provided
+
+		const updatedProduct = {
+			name,
+			price,
+			description,
+			image: imagePath, // Save image path in database
+		};
+
+		const product = await Product.findByIdAndUpdate(id, updatedProduct, {
+			new: true,
+		});
+		res.json(product);
+	} catch (error) {
+		res.status(500).json({ error: "Error updating product" });
+	}
 });
 
 // Get all orders

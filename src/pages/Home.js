@@ -1,32 +1,25 @@
 // Home.js
-import React from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { useCart } from "../store/cart";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { useNavigate } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 
 const Home = () => {
 	const { addToCart } = useCart();
-	const navigate = useNavigate(); // Initialize useNavigate hook
+	const navigate = useNavigate();
+	const [products, setProducts] = useState([]);
 
-	const products = [
-		{
-			id: 1,
-			name: "Pizza",
-			description: "Delicious pizza with cheese",
-			price: 12,
-		},
-		{ id: 2, name: "Burger", description: "Juicy burger with fries", price: 8 },
-		{
-			id: 3,
-			name: "Pasta",
-			description: "Creamy pasta with mushrooms",
-			price: 10,
-		},
-	];
+	useEffect(() => {
+		axios
+			.get("http://localhost:5000/products")
+			.then((response) => setProducts(response.data))
+			.catch((error) => console.error("Error fetching products:", error));
+	}, []);
 
 	const handleAddToCart = (product) => {
-		addToCart(product); // Add to cart
-		navigate("/cart"); // Navigate to the Cart page
+		addToCart(product);
+		navigate("/cart");
 	};
 
 	return (
@@ -35,9 +28,9 @@ const Home = () => {
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				{products.map((product) => (
 					<ProductCard
-						key={product.id}
+						key={product._id}
 						product={product}
-						addToCart={handleAddToCart} // Use handleAddToCart
+						addToCart={handleAddToCart}
 					/>
 				))}
 			</div>
